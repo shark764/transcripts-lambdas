@@ -1,5 +1,5 @@
 {
-  "name": "email-transcripts",
+  "name": "transcripts-lambdas",
   "version": "1.0.0-SNAPSHOT",
   "description": "This is the starter kit for a new lambdas repository.",
   "main": "index.js",
@@ -18,7 +18,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/SerenovaLLC/email-transcripts.git"
+    "url": "git+https://github.com/SerenovaLLC/transcripts-lambdas.git"
   },
   "keywords": [
     "lambda",
@@ -29,9 +29,9 @@
   "author": "SerenovaLLC",
   "license": "UNLICENSED",
   "bugs": {
-    "url": "https://github.com/SerenovaLLC/email-transcripts/issues"
+    "url": "https://github.com/SerenovaLLC/transcripts-lambdas/issues"
   },
-  "homepage": "https://github.com/SerenovaLLC/email-transcripts#readme",
+  "homepage": "https://github.com/SerenovaLLC/transcripts-lambdas#readme",
   "dependencies": {},
   "devDependencies": {
     "alonzo": "^8.0.3-SNAPSHOT",
