@@ -1,6 +1,6 @@
 {
-  "name": "lambda-starter-kit",
-  "version": "1.0.0",
+  "name": "email-transcripts",
+  "version": "1.0.0-SNAPSHOT",
   "description": "This is the starter kit for a new lambdas repository.",
   "main": "index.js",
   "scripts": {
@@ -18,23 +18,23 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/SerenovaLLC/lambda-starter-kit.git"
+    "url": "git+https://github.com/SerenovaLLC/email-transcripts.git"
   },
   "keywords": [
     "lambda",
     "aws",
-    "starter",
-    "kit"
+    "email",
+    "transcripts"
   ],
   "author": "SerenovaLLC",
   "license": "UNLICENSED",
   "bugs": {
-    "url": "https://github.com/SerenovaLLC/lambda-starter-kit/issues"
+    "url": "https://github.com/SerenovaLLC/email-transcripts/issues"
   },
-  "homepage": "https://github.com/SerenovaLLC/lambda-starter-kit#readme",
+  "homepage": "https://github.com/SerenovaLLC/email-transcripts#readme",
   "dependencies": {},
   "devDependencies": {
-    "alonzo": "^8.0.1",
+    "alonzo": "^8.0.3-SNAPSHOT",
     "eslint": "^6.8.0",
     "eslint-config-airbnb-base": "^14.0.0",
     "eslint-plugin-import": "^2.18.2",

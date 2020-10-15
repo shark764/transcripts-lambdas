@@ -1,0 +1,11 @@
+{
+  "name": "email-transcripts",
+  "version": "1.0.0",
+  "description": "email-transcripts - new lambda description",
+  "repository": {},
+  "license": "UNLICENSED",
+  "dependencies": {
+    "alonzo": "latest",
+    "axios": "latest"
+  }
+}
