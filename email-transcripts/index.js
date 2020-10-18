@@ -22,25 +22,30 @@ function mostRecentUuid(uuids) {
 }
 
 async function fetchArtifactId({ interactionId, tenantId, auth }) {
-  const { results } = await axios({
+  const params = {
     method: 'get',
     url: `https://${AWS_REGION}-${ENVIRONMENT}-edge.${DOMAIN}/v1/tenants/${tenantId}/interactions/${interactionId}/artifacts`,
     headers: {
-      Authorization: auth,
+      'Authorization': auth,
     },
-  });
+  };
+  log.info('Fetching artifacts summary', params);
+  const { results } = await axios(params);
+
   return results.map((a) => a.artifactId).sort(mostRecentUuid);
 }
 
 async function fetchEmailArtifact({ interactionId, tenantId, auth }) {
   const artifactId = await fetchArtifactId({ interactionId, tenantId, auth });
-  const { files } = await axios({
+  const params = {
     method: 'get',
     url: `https://${AWS_REGION}-${ENVIRONMENT}-edge.${DOMAIN}/v1/tenants/${tenantId}/interactions/${interactionId}/artifacts/${artifactId}`,
     headers: {
-      Authorization: auth,
+      'Authorization': auth,
     },
-  });
+  };
+  log.info('Fetching Email Artifact', params);
+  const { files } = await axios(params);
   const htmlFile = files.find((f) => f.contentType === 'text/html');
   const plainTextFile = files.find((f) => f.contentType === 'text/plain');
 
@@ -49,13 +54,15 @@ async function fetchEmailArtifact({ interactionId, tenantId, auth }) {
 
 async function fetchEmail({ interactionId, tenantId, auth }) {
   const { url, contentType } = await fetchEmailArtifact({ interactionId, tenantId, auth });
-  const emailFile = await axios({
+  const params = {
     method: 'get',
     url,
     headers: {
-      Authorization: auth,
+      'Authorization': auth,
     },
-  });
+  };
+  log.info('Fetching Email File', params);
+  const emailFile = await axios(params);
 
   if (emailFile) {
     return { emailFile, contentType };
