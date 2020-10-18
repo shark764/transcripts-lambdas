@@ -58,18 +58,35 @@ async function fetchEmail({ interactionId, tenantId, auth }) {
 }
 
 exports.handler = async (event) => {
-  const { params, params: { 'tenant-id': tenantId, 'interaction-id': interactionId }, headers } = event;
-  const logContext = params;
+  const {
+    params: {
+      'tenant-id': tenantId,
+      'interaction-id': interactionId,
+      'user-id': userId,
+      auth,
+    },
+    headers:
+    {
+      accept,
+    },
+  } = event;
 
-  log.info('Fetching Email Transcript', { ...logContext, event });
-  // Consider using accepts header to make pdf
+  const logContext = {
+    tenantId,
+    interactionId,
+    userId,
+    accept,
+  };
+
+  log.info('Fetching Email Transcript', logContext);
+  // TODO: Use 'accept' header to make pdf/html decision
   try {
     const { emailFile, contentType } = await fetchEmail({
       interactionId,
       tenantId,
-      headers: headers.auth,
+      auth,
     });
-    log.info('Fetching complete', { ...logContext });
+    log.info('Fetching complete', logContext);
     return { status: 200, body: emailFile, headers: { 'Content-Type': contentType } };
   } catch (error) {
     const errMsg = 'An error occurred fetching email transcript';
