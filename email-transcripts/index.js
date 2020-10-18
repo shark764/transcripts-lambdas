@@ -82,13 +82,13 @@ exports.handler = async (event) => {
   log.info('Fetching Email Transcript', logContext);
   // TODO: Use 'accept' header to make pdf/html decision
   try {
-    const { emailFile, contentType } = await fetchEmail({
+    const { data, contentType } = await fetchEmail({
       interactionId,
       tenantId,
       auth,
     });
     log.info('Fetching complete', logContext);
-    return { status: 200, body: emailFile, headers: { 'Content-Type': contentType } };
+    return { status: 200, body: data, headers: { 'Content-Type': contentType } };
   } catch (error) {
     const errMsg = 'An error occurred fetching email transcript';
     log.error(errMsg, logContext, error);
