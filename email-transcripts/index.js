@@ -51,15 +51,9 @@ async function fetchEmailArtifact({ interactionId, tenantId, auth }) {
 
 async function fetchEmail({ interactionId, tenantId, auth }) {
   const { url, contentType } = await fetchEmailArtifact({ interactionId, tenantId, auth });
-  const params = {
-    method: 'get',
-    url,
-    headers: {
-      Authorization: auth,
-    },
-  };
-  log.info('Fetching Email File', params);
-  const { data: { emailFile } } = await axios(params);
+  const { data } = await axios.get(url);
+  log.info('Returned Email Data', data);
+  const { emailFile } = data;
   if (emailFile) {
     return { emailFile, contentType };
   }
