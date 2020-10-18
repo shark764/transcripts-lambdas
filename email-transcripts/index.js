@@ -30,9 +30,9 @@ async function fetchArtifactId({ interactionId, tenantId, auth }) {
     },
   };
   log.info('Fetching artifacts summary', params);
-  const { results } = await axios(params);
-
-  return results.map((a) => a.artifactId).sort(mostRecentUuid);
+  const response = await axios(params);
+  log.info('Fetch artifacts response', response)
+  return response.body.results.map((a) => a.artifactId).sort(mostRecentUuid);
 }
 
 async function fetchEmailArtifact({ interactionId, tenantId, auth }) {
