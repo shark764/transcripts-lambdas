@@ -52,10 +52,8 @@ async function fetchEmailArtifact({ interactionId, tenantId, auth }) {
 async function fetchEmail({ interactionId, tenantId, auth }) {
   const { url, contentType } = await fetchEmailArtifact({ interactionId, tenantId, auth });
   const { data } = await axios.get(url);
-  log.info('Returned Email Data', data);
-  const { emailFile } = data;
-  if (emailFile) {
-    return { emailFile, contentType };
+  if (data) {
+    return { data, contentType };
   }
   throw new Error('Email Transcript does not exist');
 }
