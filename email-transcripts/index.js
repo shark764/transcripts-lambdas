@@ -25,7 +25,9 @@ async function fetchArtifactId({ interactionId, tenantId, auth }) {
   const { results } = await axios({
     method: 'get',
     url: `https://${AWS_REGION}-${ENVIRONMENT}-edge.${DOMAIN}/v1/tenants/${tenantId}/interactions/${interactionId}/artifacts`,
-    auth,
+    headers: {
+      Authorization: auth,
+    },
   });
   return results.map((a) => a.artifactId).sort(mostRecentUuid);
 }
@@ -35,7 +37,9 @@ async function fetchEmailArtifact({ interactionId, tenantId, auth }) {
   const { files } = await axios({
     method: 'get',
     url: `https://${AWS_REGION}-${ENVIRONMENT}-edge.${DOMAIN}/v1/tenants/${tenantId}/interactions/${interactionId}/artifacts/${artifactId}`,
-    auth,
+    headers: {
+      Authorization: auth,
+    },
   });
   const htmlFile = files.find((f) => f.contentType === 'text/html');
   const plainTextFile = files.find((f) => f.contentType === 'text/plain');
@@ -48,7 +52,9 @@ async function fetchEmail({ interactionId, tenantId, auth }) {
   const emailFile = await axios({
     method: 'get',
     url,
-    auth,
+    headers: {
+      Authorization: auth,
+    },
   });
 
   if (emailFile) {
