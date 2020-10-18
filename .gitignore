@@ -1,0 +1,33 @@
+/test
+/target
+/classes
+/checkouts
+pom.xml
+pom.xml.asc
+/node_modules
+*.jar
+*.class
+/lib/
+/classes/
+/target/
+/checkouts/
+*/node_modules/*
+.lein-deps-sum
+.lein-repl-history
+.lein-plugins/
+.lein-failures
+.nrepl-port
+.cpcache/
+/.lein-*
+/.nrepl-port
+.hgignore
+.hg/
+# mac specific thing
+.DS_Store
+#zipped files that are sent off as lambda
+*.zip
+#local test data
+/TestData
+temp/
+tmp/
+coverage

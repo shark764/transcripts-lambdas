@@ -1,0 +1,8 @@
+runtime = "nodejs12.x"
+timeout = 150
+memory_size = 128
+zip_path = "email-transcripts/email-transcripts.zip"
+handler = "index.handler"
+environmentVars = {
+  "RANDOM_VAR" = "random"
+}
