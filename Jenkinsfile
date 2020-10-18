@@ -1,5 +1,5 @@
 #!groovy​
-@Library('sprockets') _
+@Library('sprockets@2.15.1') _
 
 def deployLambdas = {
     def l = new lambda()
