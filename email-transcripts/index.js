@@ -26,13 +26,13 @@ async function fetchArtifactId({ interactionId, tenantId, auth }) {
     method: 'get',
     url: `https://${AWS_REGION}-${ENVIRONMENT}-edge.${DOMAIN}/v1/tenants/${tenantId}/interactions/${interactionId}/artifacts`,
     headers: {
-      'Authorization': auth,
+      Authorization: auth,
     },
   };
-  log.info('Fetching artifacts summary', params);
-  const response = await axios(params);
-  log.info('Fetch artifacts response', response)
-  return response.body.results.map((a) => a.artifactId).sort(mostRecentUuid);
+  log.debug('Fetching artifacts summary', params);
+  const { data } = await axios(params);
+  log.info('Fetch artifacts response', data);
+  return data.results.map((a) => a.artifactId).sort(mostRecentUuid);
 }
 
 async function fetchEmailArtifact({ interactionId, tenantId, auth }) {
@@ -41,13 +41,14 @@ async function fetchEmailArtifact({ interactionId, tenantId, auth }) {
     method: 'get',
     url: `https://${AWS_REGION}-${ENVIRONMENT}-edge.${DOMAIN}/v1/tenants/${tenantId}/interactions/${interactionId}/artifacts/${artifactId}`,
     headers: {
-      'Authorization': auth,
+      Authorization: auth,
     },
   };
   log.info('Fetching Email Artifact', params);
-  const { files } = await axios(params);
-  const htmlFile = files.find((f) => f.contentType === 'text/html');
-  const plainTextFile = files.find((f) => f.contentType === 'text/plain');
+  const { data } = await axios(params);
+  log.info('Fetch Email Artifact Response', data);
+  const htmlFile = data.files.find((f) => f.contentType === 'text/html');
+  const plainTextFile = data.files.find((f) => f.contentType === 'text/plain');
 
   return htmlFile || plainTextFile;
 }
@@ -58,12 +59,11 @@ async function fetchEmail({ interactionId, tenantId, auth }) {
     method: 'get',
     url,
     headers: {
-      'Authorization': auth,
+      Authorization: auth,
     },
   };
   log.info('Fetching Email File', params);
-  const emailFile = await axios(params);
-
+  const { data: { emailFile } } = await axios(params);
   if (emailFile) {
     return { emailFile, contentType };
   }
