@@ -4,5 +4,6 @@ memory_size = 128
 zip_path = "email-transcripts/email-transcripts.zip"
 handler = "index.handler"
 environmentVars = {
-  "RANDOM_VAR" = "random"
+  "ENVIRONMENT" = "${ENVIRONMENT}"
+  "DOMAIN" = "${DOMAIN}"
 }
