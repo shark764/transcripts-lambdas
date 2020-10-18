@@ -2,7 +2,6 @@
   "name": "transcripts-lambdas",
   "version": "1.0.0-SNAPSHOT",
   "description": "This is the starter kit for a new lambdas repository.",
-  "main": "index.js",
   "scripts": {
     "alonzo": "alonzo",
     "alonzo:install": "alonzo --install",

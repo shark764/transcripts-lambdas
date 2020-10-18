@@ -1,13 +1,13 @@
 #!groovy​
-@Library('sprockets@2.10.8') _
+@Library('sprockets') _
+
+def deployLambdas = {
+    def l = new lambda()
+    def buildTool = new node()
+    String[] blacklist = ["utils"]
+    l.deployLambdas(blacklist, buildTool)
+}
 
 node () {
-    // If you want to use a specific node version in your lambda
-    // nodeCore.defaultPipeline([
-    //     nodeVersion: 'node-version-name'
-    // ])
-
-    // If you don't set a node version,
-    // it will use node 12.x by default
-    nodeCore.defaultPipeline()
+    nodeCore.defaultPipeline(postBuild: deployLambdas)
 }
