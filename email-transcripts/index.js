@@ -17,10 +17,6 @@ function compareUuids(uuidA, uuidB) {
   return getUuidTime(uuidB) - getUuidTime(uuidA);
 }
 
-function mostRecentUuid(uuids) {
-  return uuids.sort(compareUuids)[0];
-}
-
 async function fetchArtifactId({ interactionId, tenantId, auth }) {
   const params = {
     method: 'get',
@@ -30,9 +26,9 @@ async function fetchArtifactId({ interactionId, tenantId, auth }) {
     },
   };
   log.debug('Fetching artifacts summary', params);
-  const { data } = await axios(params);
-  log.info('Fetch artifacts response', data);
-  return data.results.map((a) => a.artifactId).sort(mostRecentUuid);
+  const { data: { results } } = await axios(params);
+  log.info('Fetch artifacts response', results);
+  return results.map((a) => a.artifactId).sort(compareUuids)[0];
 }
 
 async function fetchEmailArtifact({ interactionId, tenantId, auth }) {
