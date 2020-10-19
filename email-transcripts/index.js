@@ -36,8 +36,14 @@ async function fetchArtifact({ interactionId, tenantId, auth }) {
   const { data: { results } } = await axios(params);
   const emailArtifacts = results.filter((a) => (a.artifactType === 'email' && a.fileCount > 0));
   log.debug('Fetch email artifacts response', emailArtifacts);
-  const resolvedArtifacts = await Promise.all(emailArtifacts.map((a) => fetchArtifacts(
-    interactionId, tenantId, auth, a.artifactId)));
+  const resolvedArtifacts = await Promise.all(
+    emailArtifacts.map((a) => fetchArtifacts(
+      interactionId,
+      tenantId,
+      auth,
+      a.artifactId,
+    )),
+  );
   return resolvedArtifacts.map((a) => a.created).sort(compareDates)[0];
 }
 
