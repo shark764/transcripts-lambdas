@@ -3,21 +3,28 @@ const axios = require('axios');
 
 const { AWS_REGION, ENVIRONMENT, DOMAIN } = process.env;
 
-function getUuidTime(uuidStr) {
-  const uuidArr = uuidStr.split('-');
-  const timeStr = [uuidArr[2].substring(1), uuidArr[1], uuidArr[0]].join('');
-  return parseInt(timeStr, 16);
+function getUuidDate(date) {
+  return new Date(date);
 }
 
-function compareUuids(uuidA, uuidB) {
-  /*
-  * If uuidA is greater, return negative value.
-  *   uuidA gets lower index than uuidB, most recent uuid will be 0th element
-  */
-  return getUuidTime(uuidB) - getUuidTime(uuidA);
+function compareDates(date1, date2) {
+  return getUuidDate(date1) > getUuidDate(date2) ? date1 : date2;
 }
 
-async function fetchArtifactId({ interactionId, tenantId, auth }) {
+async function fetchArtifacts(interactionId, tenantId, auth, artifactId) {
+  const params = {
+    method: 'get',
+    url: `https://${AWS_REGION}-${ENVIRONMENT}-edge.${DOMAIN}/v1/tenants/${tenantId}/interactions/${interactionId}/artifacts/${artifactId}`,
+    headers: {
+      Authorization: auth,
+    },
+  };
+  log.debug('Fetching Artifacts', params);
+  const { data } = await axios(params);
+  return data;
+}
+
+async function fetchArtifact({ interactionId, tenantId, auth }) {
   const params = {
     method: 'get',
     url: `https://${AWS_REGION}-${ENVIRONMENT}-edge.${DOMAIN}/v1/tenants/${tenantId}/interactions/${interactionId}/artifacts`,
@@ -29,26 +36,34 @@ async function fetchArtifactId({ interactionId, tenantId, auth }) {
   const { data: { results } } = await axios(params);
   const emailArtifacts = results.filter((a) => (a.artifactType === 'email' && a.fileCount > 0));
   log.debug('Fetch email artifacts response', emailArtifacts);
-  if (!emailArtifacts.length) throw new Error('Missing');
-  return emailArtifacts.map((a) => a.artifactId).sort(compareUuids)[0];
+  const resolvedArtifacts = await Promise.all(emailArtifacts.map((a) => fetchArtifacts(
+    interactionId, tenantId, auth, a.artifactId)));
+  return resolvedArtifacts.map((a) => a.created).sort(compareDates)[0];
 }
 
-async function fetchEmailArtifact({ interactionId, tenantId, auth }) {
-  const artifactId = await fetchArtifactId({ interactionId, tenantId, auth });
+async function fetchMainArtifactFile(interactionId, tenantId, auth, artifactId, artifactFileId) {
   const params = {
     method: 'get',
-    url: `https://${AWS_REGION}-${ENVIRONMENT}-edge.${DOMAIN}/v1/tenants/${tenantId}/interactions/${interactionId}/artifacts/${artifactId}`,
+    url: `https://${AWS_REGION}-${ENVIRONMENT}-edge.${DOMAIN}/v1/tenants/${tenantId}/interactions/${interactionId}/artifacts/${artifactId}/files/${artifactFileId}`,
     headers: {
       Authorization: auth,
     },
   };
-  log.debug('Fetching Email Artifact', params);
+  log.debug('Fetching Main Artifact file', params);
   const { data } = await axios(params);
-  log.debug('Fetch Email Artifact Response', data);
-  const htmlFile = data.files.find((f) => f.contentType.toLowerCase() === 'text/html');
-  const plainTextFile = data.files.find((f) => f.contentType.toLowerCase() === 'text/plain');
-  const file = htmlFile || plainTextFile;
-  if (!file) throw new Error('Missing');
+  return data;
+}
+
+async function fetchEmailArtifact({ interactionId, tenantId, auth }) {
+  const artifact = await fetchArtifact({ interactionId, tenantId, auth });
+  log.debug('Fetch Email Artifact Response', artifact);
+  const manifestFile = artifact.files.find((f) => f.contentType.toLowerCase() === 'application/json');
+  const { data: { body } } = await axios(manifestFile.url);
+  const htmlFileId = body.html.artifactFileId;
+  const plainTextFileId = body.plain.artifactFileId;
+  const artifactFileId = htmlFileId != null ? htmlFileId : plainTextFileId;
+  const file = await fetchMainArtifactFile(interactionId,
+    tenantId, auth, artifact.artifactId, artifactFileId);
   return file;
 }
 
