@@ -27,7 +27,7 @@ async function fetchArtifactId({ interactionId, tenantId, auth }) {
   };
   log.debug('Fetching artifacts summary', params);
   const { data: { results } } = await axios(params);
-  log.info('Fetch artifacts response', results);
+  log.debug('Fetch artifacts response', results);
   if (!results) throw new Error('Missing');
   return results.map((a) => a.artifactId).sort(compareUuids)[0];
 }
@@ -41,9 +41,9 @@ async function fetchEmailArtifact({ interactionId, tenantId, auth }) {
       Authorization: auth,
     },
   };
-  log.info('Fetching Email Artifact', params);
+  log.debug('Fetching Email Artifact', params);
   const { data } = await axios(params);
-  log.info('Fetch Email Artifact Response', data);
+  log.debug('Fetch Email Artifact Response', data);
   const htmlFile = data.files.find((f) => f.contentType === 'text/html');
   const plainTextFile = data.files.find((f) => f.contentType === 'text/plain');
   const file = htmlFile || plainTextFile;
@@ -55,10 +55,8 @@ async function fetchEmail({ interactionId, tenantId, auth }) {
   const { url, contentType } = await fetchEmailArtifact({ interactionId, tenantId, auth });
   const { data } = await axios.get(url);
   // TODO: Use 'accept' header to make pdf/html decision
-  if (data) {
-    return { data, contentType };
-  }
-  throw new Error('Email Transcript does not exist');
+  if (!data) throw new Error('Missing');
+  return { data, contentType };
 }
 
 exports.handler = async (event) => {
