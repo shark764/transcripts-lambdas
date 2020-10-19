@@ -28,6 +28,7 @@ async function fetchArtifactId({ interactionId, tenantId, auth }) {
   log.debug('Fetching artifacts summary', params);
   const { data: { results } } = await axios(params);
   log.info('Fetch artifacts response', results);
+  if (!results) throw new Error('Missing');
   return results.map((a) => a.artifactId).sort(compareUuids)[0];
 }
 
@@ -45,13 +46,15 @@ async function fetchEmailArtifact({ interactionId, tenantId, auth }) {
   log.info('Fetch Email Artifact Response', data);
   const htmlFile = data.files.find((f) => f.contentType === 'text/html');
   const plainTextFile = data.files.find((f) => f.contentType === 'text/plain');
-
-  return htmlFile || plainTextFile;
+  const file = htmlFile || plainTextFile;
+  if (!file) throw new Error('Missing');
+  return file;
 }
 
 async function fetchEmail({ interactionId, tenantId, auth }) {
   const { url, contentType } = await fetchEmailArtifact({ interactionId, tenantId, auth });
   const { data } = await axios.get(url);
+  // TODO: Use 'accept' header to make pdf/html decision
   if (data) {
     return { data, contentType };
   }
@@ -66,10 +69,7 @@ exports.handler = async (event) => {
       'user-id': userId,
       auth,
     },
-    headers:
-    {
-      accept,
-    },
+    headers: { accept },
   } = event;
 
   const logContext = {
@@ -79,8 +79,8 @@ exports.handler = async (event) => {
     accept,
   };
 
-  log.info('Fetching Email Transcript', logContext);
-  // TODO: Use 'accept' header to make pdf/html decision
+  log.info('Handling fetch email transcript request', logContext);
+
   try {
     const { data, contentType } = await fetchEmail({
       interactionId,
@@ -90,10 +90,12 @@ exports.handler = async (event) => {
     log.info('Fetching complete', logContext);
     return { status: 200, body: data, headers: { 'Content-Type': contentType } };
   } catch (error) {
-    const errMsg = 'An error occurred fetching email transcript';
+    const dne = (error.message === 'Missing');
+    const errMsg = dne ? 'Specified interaction transcript does not exist' : 'An unexpected error occurred fetching email transcript';
+    const status = dne ? 404 : 500;
     log.error(errMsg, logContext, error);
     return {
-      status: 500,
+      status,
       body: { message: errMsg },
     };
   }
