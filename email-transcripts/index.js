@@ -28,8 +28,9 @@ async function fetchArtifactId({ interactionId, tenantId, auth }) {
   log.debug('Fetching artifacts summary', params);
   const { data: { results } } = await axios(params);
   log.debug('Fetch artifacts response', results);
-  if (!results) throw new Error('Missing');
-  return results.map((a) => a.artifactId).sort(compareUuids)[0];
+  const emailArtifacts = results.filter((a) => (a.artifactType === 'email' && a.fileCount > 0));
+  if (!emailArtifacts) throw new Error('Missing');
+  return emailArtifacts.map((a) => a.artifactId).sort(compareUuids)[0];
 }
 
 async function fetchEmailArtifact({ interactionId, tenantId, auth }) {
