@@ -29,7 +29,7 @@ async function fetchArtifactId({ interactionId, tenantId, auth }) {
   const { data: { results } } = await axios(params);
   const emailArtifacts = results.filter((a) => (a.artifactType === 'email' && a.fileCount > 0));
   log.debug('Fetch email artifacts response', emailArtifacts);
-  if (!emailArtifacts) throw new Error('Missing');
+  if (!emailArtifacts.length) throw new Error('Missing');
   return emailArtifacts.map((a) => a.artifactId).sort(compareUuids)[0];
 }
 
@@ -45,8 +45,8 @@ async function fetchEmailArtifact({ interactionId, tenantId, auth }) {
   log.debug('Fetching Email Artifact', params);
   const { data } = await axios(params);
   log.debug('Fetch Email Artifact Response', data);
-  const htmlFile = data.files.find((f) => f.contentType === 'text/html');
-  const plainTextFile = data.files.find((f) => f.contentType === 'text/plain');
+  const htmlFile = data.files.find((f) => f.contentType.toLowerCase() === 'text/html');
+  const plainTextFile = data.files.find((f) => f.contentType.toLowerCase() === 'text/plain');
   const file = htmlFile || plainTextFile;
   if (!file) throw new Error('Missing');
   return file;
