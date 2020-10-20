@@ -44,8 +44,9 @@ async function fetchArtifact({
       Authorization: auth,
     },
   };
-  log.debug('Fetching Artifacts', params);
+  log.debug('Fetching Artifact', params);
   const { data } = await axios(params);
+  log.debug('Fetch Artifact response', { ...params, data });
   // Don't guard the 404 here
   return data;
 }
@@ -54,6 +55,7 @@ async function fetchMostRecentArtifact(params) {
   const resolvedArtifacts = await Promise.all(
     params.emailArtifacts.map((a) => fetchArtifact({ ...params, artifactId: a.artifactId })),
   );
+  log.debug('Fetched Artifacts', { ...params, artifacts: resolvedArtifacts });
   const mostRecentArtifact = resolvedArtifacts.sort(compareCreated)[0];
   guard404(!mostRecentArtifact || !mostRecentArtifact.length);
   return mostRecentArtifact;
