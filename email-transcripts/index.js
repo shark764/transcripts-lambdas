@@ -65,17 +65,14 @@ async function fetchMostRecentArtifact(params) {
   return mostRecentArtifact;
 }
 
-function findManifest({ files }) {
-  return files.find((f) => f.contentType.toLowerCase().includes('application/json'));
-}
-
 function findFileById({ files }, fileId) {
-  return files.find((f) => f.artifactId === fileId);
+  return files.find((f) => f.artifactFileId === fileId);
 }
 
 async function fetchEmailArtifactFile(artifact) {
-  const manifestFile = findManifest(artifact);
-  guard404((!manifestFile || !manifestFile.url));
+  log.debug('Finding Email Artifact File', { ...artifact });
+  const manifestFile = findFileById(artifact, artifact.manifestId);
+  guard404((emptyObject(manifestFile) || !manifestFile.url));
   const { data, data: { body, body: { html, plain } } } = await axios(manifestFile.url);
   guard404((emptyObject(body) || emptyObject(data) || (!html && !plain)));
   const htmlFileId = html ? html.artifactFileId : null;
