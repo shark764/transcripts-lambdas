@@ -11,8 +11,8 @@ function getDate(date) {
   return new Date(date);
 }
 
-function compareCreated(a1, a2) {
-  return getDate(a1.created) > getDate(a2.created) ? -1 : 1;
+function compareUpdated(a1, a2) {
+  return getDate(a1.updated) > getDate(a2.updated) ? -1 : 1;
 }
 
 async function fetchArtifactsSummary({ interactionId, tenantId, auth }) {
@@ -53,11 +53,12 @@ async function fetchArtifact({
 
 async function fetchMostRecentArtifact(params) {
   const resolvedArtifacts = await Promise.all(
-    params.emailArtifacts.map((a) => fetchArtifact({ ...params, artifactId: a.artifactId })),
+    params.emailArtifactsSummary.map((a) => fetchArtifact({ ...params, artifactId: a.artifactId })),
   );
   log.debug('Fetched Artifacts', { ...params, artifacts: resolvedArtifacts });
-  const mostRecentArtifact = resolvedArtifacts.sort(compareCreated)[0];
-  guard404(!mostRecentArtifact || !mostRecentArtifact.length);
+  const mostRecentArtifact = resolvedArtifacts.sort(compareUpdated)[0];
+  log.debug('Most Recent Artifact', mostRecentArtifact);
+  guard404((!mostRecentArtifact || !mostRecentArtifact.length));
   return mostRecentArtifact;
 }
 
@@ -94,8 +95,8 @@ exports.handler = async (event) => {
   const fnParams = { ...logContext, auth: params.auth };
   log.info('Handling fetch email transcript request', logContext);
   try {
-    const emailArtifacts = await fetchArtifactsSummary(fnParams);
-    const artifact = await fetchMostRecentArtifact({ ...fnParams, emailArtifacts });
+    const emailArtifactsSummary = await fetchArtifactsSummary(fnParams);
+    const artifact = await fetchMostRecentArtifact({ ...fnParams, emailArtifactsSummary });
     const { url } = await fetchEmailArtifactFile(artifact);
     const data = await fetchEmail(url);
     log.info('Fetching complete', logContext);
