@@ -92,8 +92,8 @@ exports.handler = async (event) => {
   const fnParams = { ...logContext, auth: params.auth };
   log.info('Handling fetch email transcript request', logContext);
   try {
-    const artifactsSummary = await fetchArtifactsSummary(fnParams);
-    const artifact = await fetchMostRecentArtifact({ ...fnParams, artifactsSummary });
+    const emailArtifacts = await fetchArtifactsSummary(fnParams);
+    const artifact = await fetchMostRecentArtifact({ ...fnParams, emailArtifacts });
     const { url } = await fetchEmailArtifactFile(artifact);
     const data = await fetchEmail(url);
     log.info('Fetching complete', logContext);
