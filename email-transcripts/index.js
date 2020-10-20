@@ -3,6 +3,9 @@ const axios = require('axios');
 
 const { AWS_REGION, ENVIRONMENT, DOMAIN } = process.env;
 
+function emptyObject(obj) {
+  return (Object.keys(obj).length === 0 && obj.constructor === Object);
+}
 function guard404(predicate) {
   if (predicate) throw new Error('Missing');
 }
@@ -58,7 +61,7 @@ async function fetchMostRecentArtifact(params) {
   log.debug('Fetched Artifacts', { ...params, artifacts: resolvedArtifacts });
   const mostRecentArtifact = resolvedArtifacts.sort(compareUpdated)[0];
   log.debug('Most Recent Artifact', mostRecentArtifact);
-  guard404((!mostRecentArtifact || !mostRecentArtifact.length));
+  guard404((!mostRecentArtifact || emptyObject(mostRecentArtifact)));
   return mostRecentArtifact;
 }
 
@@ -72,8 +75,9 @@ function findFileById({ files }, fileId) {
 
 async function fetchEmailArtifactFile(artifact) {
   const manifestFile = findManifest(artifact);
+  guard404((!manifestFile || !manifestFile.url));
   const { data, data: { body, body: { html, plain } } } = await axios(manifestFile.url);
-  guard404((!body.length || !data.length || (!html && !plain)));
+  guard404((emptyObject(body) || emptyObject(data) || (!html && !plain)));
   const htmlFileId = html ? html.artifactFileId : null;
   const fileId = htmlFileId || plain.artifactFileId;
   const fileArtifact = findFileById(artifact, fileId);
