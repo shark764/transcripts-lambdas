@@ -3,28 +3,19 @@ const axios = require('axios');
 
 const { AWS_REGION, ENVIRONMENT, DOMAIN } = process.env;
 
-function getUuidDate(date) {
+function guard404(predicate) {
+  if (predicate) throw new Error('Missing');
+}
+
+function getDate(date) {
   return new Date(date);
 }
 
-function compareDates(date1, date2) {
-  return getUuidDate(date1) > getUuidDate(date2) ? date1 : date2;
+function compareCreated(a1, a2) {
+  return getDate(a1.created) > getDate(a2.created) ? -1 : 1;
 }
 
-async function fetchArtifacts(interactionId, tenantId, auth, artifactId) {
-  const params = {
-    method: 'get',
-    url: `https://${AWS_REGION}-${ENVIRONMENT}-edge.${DOMAIN}/v1/tenants/${tenantId}/interactions/${interactionId}/artifacts/${artifactId}`,
-    headers: {
-      Authorization: auth,
-    },
-  };
-  log.debug('Fetching Artifacts', params);
-  const { data } = await axios(params);
-  return data;
-}
-
-async function fetchArtifact({ interactionId, tenantId, auth }) {
+async function fetchArtifactsSummary({ interactionId, tenantId, auth }) {
   const params = {
     method: 'get',
     url: `https://${AWS_REGION}-${ENVIRONMENT}-edge.${DOMAIN}/v1/tenants/${tenantId}/interactions/${interactionId}/artifacts`,
@@ -36,77 +27,75 @@ async function fetchArtifact({ interactionId, tenantId, auth }) {
   const { data: { results } } = await axios(params);
   const emailArtifacts = results.filter((a) => (a.artifactType === 'email' && a.fileCount > 0));
   log.debug('Fetch email artifacts response', emailArtifacts);
-  const resolvedArtifacts = await Promise.all(
-    emailArtifacts.map((a) => fetchArtifacts(
-      interactionId,
-      tenantId,
-      auth,
-      a.artifactId,
-    )),
-  );
-  return resolvedArtifacts.map((a) => a.created).sort(compareDates)[0];
+  guard404((!emailArtifacts || !emailArtifacts.length));
+  return emailArtifacts;
 }
 
-async function fetchMainArtifactFile(interactionId, tenantId, auth, artifactId, artifactFileId) {
+async function fetchArtifact({
+  interactionId,
+  tenantId,
+  auth,
+  artifactId,
+}) {
   const params = {
     method: 'get',
-    url: `https://${AWS_REGION}-${ENVIRONMENT}-edge.${DOMAIN}/v1/tenants/${tenantId}/interactions/${interactionId}/artifacts/${artifactId}/files/${artifactFileId}`,
+    url: `https://${AWS_REGION}-${ENVIRONMENT}-edge.${DOMAIN}/v1/tenants/${tenantId}/interactions/${interactionId}/artifacts/${artifactId}`,
     headers: {
       Authorization: auth,
     },
   };
-  log.debug('Fetching Main Artifact file', params);
+  log.debug('Fetching Artifacts', params);
   const { data } = await axios(params);
+  // Don't guard the 404 here
   return data;
 }
 
-async function fetchEmailArtifact({ interactionId, tenantId, auth }) {
-  const artifact = await fetchArtifact({ interactionId, tenantId, auth });
-  log.debug('Fetch Email Artifact Response', artifact);
-  const manifestFile = artifact.files.find((f) => f.contentType.toLowerCase() === 'application/json');
-  const { data: { body } } = await axios(manifestFile.url);
-  const htmlFileId = body.html.artifactFileId;
-  const plainTextFileId = body.plain.artifactFileId;
-  const artifactFileId = htmlFileId != null ? htmlFileId : plainTextFileId;
-  const file = await fetchMainArtifactFile(interactionId,
-    tenantId, auth, artifact.artifactId, artifactFileId);
-  return file;
+async function fetchMostRecentArtifact(params) {
+  const resolvedArtifacts = await Promise.all(
+    params.emailArtifacts.map((a) => fetchArtifact({ ...params, artifactId: a.artifactId })),
+  );
+  const mostRecentArtifact = resolvedArtifacts.sort(compareCreated)[0];
+  guard404(!mostRecentArtifact || !mostRecentArtifact.length);
+  return mostRecentArtifact;
 }
 
-async function fetchEmail({ interactionId, tenantId, auth }) {
-  const { url, contentType } = await fetchEmailArtifact({ interactionId, tenantId, auth });
+function findManifest({ files }) {
+  return files.find((f) => f.contentType.toLowerCase().includes('application/json'));
+}
+
+function findFileById({ files }, fileId) {
+  return files.find((f) => f.artifactId === fileId);
+}
+
+async function fetchEmailArtifactFile(artifact) {
+  const manifestFile = findManifest(artifact);
+  const { data, data: { body, body: { html, plain } } } = await axios(manifestFile.url);
+  guard404((!body.length || !data.length || (!html && !plain)));
+  const htmlFileId = html ? html.artifactFileId : null;
+  const fileId = htmlFileId || plain.artifactFileId;
+  const fileArtifact = findFileById(artifact, fileId);
+  guard404(!fileArtifact);
+  return fileArtifact;
+}
+
+async function fetchEmail(url) {
   const { data } = await axios.get(url);
   // TODO: Use 'accept' header to make pdf/html decision
-  if (!data) throw new Error('Missing');
-  return { data, contentType };
+  guard404(!data);
+  return data;
 }
 
 exports.handler = async (event) => {
-  const {
-    params: {
-      'tenant-id': tenantId,
-      'interaction-id': interactionId,
-      'user-id': userId,
-      auth,
-    },
-    headers: { accept },
-  } = event;
-
-  const logContext = {
-    tenantId,
-    interactionId,
-    userId,
-    accept,
-  };
-
+  const { params, params: { 'tenant-id': tenantId, 'interaction-id': interactionId } } = event;
+  const contentType = event.headers.accept;
+  const logContext = { tenantId, interactionId, accept: contentType };
+  const fnParams = { ...logContext, auth: params.auth };
   log.info('Handling fetch email transcript request', logContext);
-
   try {
-    const { data, contentType } = await fetchEmail({
-      interactionId,
-      tenantId,
-      auth,
-    });
+    const artifactsSummary = await fetchArtifactsSummary(fnParams);
+    const artifact = await fetchMostRecentArtifact({ ...fnParams, artifactsSummary });
+    const { url } = await fetchEmailArtifactFile(artifact);
+    const data = await fetchEmail(url);
     log.info('Fetching complete', logContext);
     return { status: 200, body: data, headers: { 'Content-Type': contentType } };
   } catch (error) {
