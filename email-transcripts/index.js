@@ -73,20 +73,31 @@ async function fetchEmailArtifactFile(artifact) {
   log.debug('Finding Email Artifact File', { ...artifact });
   const manifestFile = findFileById(artifact, artifact.manifestId);
   guard404((emptyObject(manifestFile) || !manifestFile.url));
-  const { data, data: { body, body: { html, plain } } } = await axios(manifestFile.url);
-  guard404((emptyObject(body) || emptyObject(data) || (!html && !plain)));
-  const htmlFileId = html ? html.artifactFileId : null;
-  const fileId = htmlFileId || plain.artifactFileId;
-  const fileArtifact = findFileById(artifact, fileId);
-  guard404(!fileArtifact);
-  return fileArtifact;
-}
-
-async function fetchEmail(url) {
-  const { data } = await axios.get(url);
-  // TODO: Use 'accept' header to make pdf/html decision
+  const { data } = await axios(manifestFile.url);
   guard404(!data);
-  return data;
+  let fileArtifact;
+  if (!data.body.html) {
+    fileArtifact = findFileById(artifact, data.body.plain.artifactFileId);
+  } else {
+    fileArtifact = findFileById(artifact, data.body.html.artifactFileId);
+  }
+
+  guard404(!fileArtifact);
+  let emailData;
+  try {
+    emailData = await axios.get(fileArtifact.url);
+  } catch (err) {
+    // Error retrieving html file url - get plain file content
+    if (data.body.html) {
+      const plainArtifact = findFileById(artifact, data.body.plain.artifactFileId);
+      emailData = await axios.get(plainArtifact.url);
+    } else {
+      // Error if neither plain or html file exists
+      guard404(err);
+    }
+  }
+  guard404(!emailData);
+  return emailData;
 }
 
 exports.handler = async (event) => {
@@ -98,8 +109,7 @@ exports.handler = async (event) => {
   try {
     const emailArtifactsSummary = await fetchArtifactsSummary(fnParams);
     const artifact = await fetchMostRecentArtifact({ ...fnParams, emailArtifactsSummary });
-    const { url } = await fetchEmailArtifactFile(artifact);
-    const data = await fetchEmail(url);
+    const { data } = await fetchEmailArtifactFile(artifact);
     log.info('Fetching complete', logContext);
     return { status: 200, body: data, headers: { 'Content-Type': contentType } };
   } catch (error) {
