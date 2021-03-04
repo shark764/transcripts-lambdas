@@ -1,0 +1,11 @@
+{
+  "name": "chat-transcripts",
+  "version": "1.0.0",
+  "description": "chat-transcripts - new lambda description",
+  "repository": {},
+  "license": "UNLICENSED",
+  "dependencies": {
+    "alonzo": "latest",
+    "axios": "latest"
+  }
+}
