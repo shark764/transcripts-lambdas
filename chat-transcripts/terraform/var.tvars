@@ -1,9 +1,0 @@
-runtime = "nodejs12.x"
-timeout = 150
-memory_size = 128
-zip_path = "chat-transcripts/chat-transcripts.zip"
-handler = "index.handler"
-environmentVars = {
-  "ENVIRONMENT" = "${ENVIRONMENT}"
-  "DOMAIN" = "${DOMAIN}"
-}
