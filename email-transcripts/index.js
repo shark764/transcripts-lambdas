@@ -28,10 +28,10 @@ async function fetchArtifactsSummary({ interactionId, tenantId, auth }) {
   };
   log.debug('Fetching artifacts summary', params);
   const { data: { results } } = await axios(params);
-  const emailArtifacts = results.filter((a) => (a.artifactType === 'email' && a.fileCount > 0));
-  log.debug('Fetch email artifacts response', emailArtifacts);
-  guard404((!emailArtifacts || !emailArtifacts.length));
-  return emailArtifacts;
+  const artifacts = results.filter((a) => ((a.artifactType === 'email' || a.artifactType === 'messaging-transcript') && a.fileCount > 0));
+  log.debug('Fetch artifacts response', artifacts);
+  guard404((!artifacts || !artifacts.length));
+  return artifacts;
 }
 
 async function fetchArtifact({
@@ -56,7 +56,7 @@ async function fetchArtifact({
 
 async function fetchMostRecentArtifact(params) {
   const resolvedArtifacts = await Promise.all(
-    params.emailArtifactsSummary.map((a) => fetchArtifact({ ...params, artifactId: a.artifactId })),
+    params.artifactsSummary.map((a) => fetchArtifact({ ...params, artifactId: a.artifactId })),
   );
   log.debug('Fetched Artifacts', { ...params, artifacts: resolvedArtifacts });
   const mostRecentArtifact = resolvedArtifacts.sort(compareUpdated)[0];
@@ -81,7 +81,6 @@ async function fetchEmailArtifactFile(artifact) {
   } else {
     fileArtifact = findFileById(artifact, data.body.html.artifactFileId);
   }
-
   guard404(!fileArtifact);
   let emailData;
   try {
@@ -100,18 +99,71 @@ async function fetchEmailArtifactFile(artifact) {
   return emailData;
 }
 
+function findTranscriptByMetadata({ files }) {
+  return files.find((file) => file && file.metadata && file.metadata.transcript
+    && file.metadata.transcript === true);
+}
+
+async function fetchMessagingArtifactFile(artifact) {
+  log.debug('Finding Messaging Artifact File', { ...artifact });
+  const transcriptFile = findTranscriptByMetadata(artifact);
+  log.debug('The transcript file', { ...transcriptFile });
+  guard404(emptyObject(transcriptFile) || !transcriptFile.url);
+  const { url } = transcriptFile;
+  log.debug('The s3 artifact url: ', { url });
+  const { data } = await axios.get(url);
+  log.debug('Get the messaging payloads from the transcript file', { data });
+  guard404(emptyObject(data));
+  const updatedPayload = data.map((item) => {
+    const {
+      payload: { body },
+    } = item;
+    const { file } = body;
+    if (Object.keys(file).length > 0) {
+      const { files = [] } = artifact;
+      const artifactFile = files.find((aFile) => aFile.metadata
+        && aFile.metadata.messageId === body.id);
+      if (artifactFile) {
+        file.mediaUrl = artifactFile.url;
+      }
+    }
+    return item;
+  });
+  log.debug('Update the messaging payloads url with the s3 url', { updatedPayload });
+  return { messagingTranscript: updatedPayload, contentType: transcriptFile.contentType };
+}
+
 exports.handler = async (event) => {
   const { params, params: { 'tenant-id': tenantId, 'interaction-id': interactionId } } = event;
-  const contentType = event.headers.accept;
+  let contentType = event.headers.accept;
   const logContext = { tenantId, interactionId, accept: contentType };
   const fnParams = { ...logContext, auth: params.auth };
-  log.info('Handling fetch email transcript request', logContext);
+  log.info('Handling fetch digital channel transcript request', logContext);
   try {
-    const emailArtifactsSummary = await fetchArtifactsSummary(fnParams);
-    const artifact = await fetchMostRecentArtifact({ ...fnParams, emailArtifactsSummary });
-    const { data } = await fetchEmailArtifactFile(artifact);
+    const artifactsSummary = await fetchArtifactsSummary(fnParams);
+    const artifact = await fetchMostRecentArtifact({ ...fnParams, artifactsSummary });
+    const { artifactType } = artifact;
+    log.debug('Get the artifactType from the artifact.', { artifactType });
+    let transcriptData;
+    switch (artifactType) {
+      case 'email': {
+        const { data } = await fetchEmailArtifactFile(artifact);
+        transcriptData = data;
+        break;
+      }
+      case 'messaging-transcript': {
+        transcriptData = await fetchMessagingArtifactFile(artifact);
+        contentType = transcriptData.contentType;
+        break;
+      }
+      default: {
+        log.info('The given artifact content type is not support yet', logContext);
+        guard404(emptyObject(transcriptData));
+        break;
+      }
+    }
     log.info('Fetching complete', logContext);
-    return { status: 200, body: data, headers: { 'Content-Type': contentType } };
+    return { status: 200, body: transcriptData, headers: { 'Content-Type': contentType } };
   } catch (error) {
     const dne = (error.message === 'Missing');
     const errMsg = dne ? 'Specified interaction transcript does not exist' : 'An unexpected error occurred fetching email transcript';
