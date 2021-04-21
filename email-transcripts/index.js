@@ -125,6 +125,7 @@ async function fetchMessagingArtifactFile(artifact) {
         && aFile.metadata.messageId === body.id);
       if (artifactFile) {
         file.mediaUrl = artifactFile.url;
+        file.filename = artifactFile.filename;
       }
     }
     return item;
