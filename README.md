@@ -4,6 +4,9 @@ _Starter kit repository with all initial files and configuration to start adding
 
 ![Let the fun begin](https://media.giphy.com/media/1AgEA1GME0scObgPus/giphy.gif)
 
+## Lambdas:
+The main lambdas "get-transcripts".
+
 ## Use 'alonzo' to generate new lambdas
 _On root directory your-lambdas-repo/_
 ```
