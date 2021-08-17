@@ -1,9 +1,8 @@
 const { lambda: { log } } = require('alonzo');
 const axios = require('axios');
-const AWS = require('aws-sdk');
+const { validate } = require('uuid');
 
 const { AWS_REGION, ENVIRONMENT, DOMAIN } = process.env;
-const lambda = new AWS.Lambda({ region: AWS_REGION });
 
 function emptyObject(obj) {
   return (Object.keys(obj).length === 0 && obj.constructor === Object);
@@ -67,92 +66,147 @@ async function fetchMostRecentArtifact(params) {
   return mostRecentArtifact;
 }
 
-// function findFileById({ files }, fileId) {
-//   return files.find((f) => f.artifactFileId === fileId);
-// }
+function findFileById({ files }, fileId) {
+  return files.find((f) => f.artifactFileId === fileId);
+}
 
-// async function fetchEmailArtifactFile(artifact) {
-//   log.debug('Finding Email Artifact File', { ...artifact });
-//   const manifestFile = findFileById(artifact, artifact.manifestId);
-//   guard404((emptyObject(manifestFile) || !manifestFile.url));
-//   const { data } = await axios(manifestFile.url);
-//   guard404(!data);
-//   let fileArtifact;
-//   if (!data.body.html) {
-//     fileArtifact = findFileById(artifact, data.body.plain.artifactFileId);
-//   } else {
-//     fileArtifact = findFileById(artifact, data.body.html.artifactFileId);
-//   }
-//   guard404(!fileArtifact);
-//   let emailData;
-//   try {
-//     emailData = await axios.get(fileArtifact.url);
-//   } catch (err) {
-//     // Error retrieving html file url - get plain file content
-//     if (data.body.html) {
-//       const plainArtifact = findFileById(artifact, data.body.plain.artifactFileId);
-//       emailData = await axios.get(plainArtifact.url);
-//     } else {
-//       // Error if neither plain or html file exists
-//       guard404(err);
-//     }
-//   }
-//   guard404(!emailData);
-//   return emailData;
-// }
+async function fetchEmailArtifactFile(artifact) {
+  log.debug('Finding Email Artifact File', { ...artifact });
+  const manifestFile = findFileById(artifact, artifact.manifestId);
+  guard404((emptyObject(manifestFile) || !manifestFile.url));
+  const { data } = await axios(manifestFile.url);
+  guard404(!data);
+  let fileArtifact;
+  if (!data.body.html) {
+    fileArtifact = findFileById(artifact, data.body.plain.artifactFileId);
+  } else {
+    fileArtifact = findFileById(artifact, data.body.html.artifactFileId);
+  }
+  guard404(!fileArtifact);
+  let emailData;
+  try {
+    emailData = await axios.get(fileArtifact.url);
+  } catch (err) {
+    // Error retrieving html file url - get plain file content
+    if (data.body.html) {
+      const plainArtifact = findFileById(artifact, data.body.plain.artifactFileId);
+      emailData = await axios.get(plainArtifact.url);
+    } else {
+      // Error if neither plain or html file exists
+      guard404(err);
+    }
+  }
+  guard404(!emailData);
+  return emailData;
+}
 
-function fetchEmailArtifactFile(artifact, logContext) {
-  log.info('Call the email-transcripts chaild lambda to get the artifact file.', { ...logContext, artifact });
+async function fetchUserById({
+  logContext, tenantId, userId, auth,
+}) {
   const params = {
-    FunctionName: 'email-transcripts',
-    Payload: JSON.stringify(artifact),
+    method: 'get',
+    url: `https://${AWS_REGION}-${ENVIRONMENT}-edge.${DOMAIN}/v1/tenants/${tenantId}/users/${userId}`,
+    headers: {
+      Authorization: auth,
+    },
   };
-  return new Promise((resolve, reject) => {
-    lambda.invoke(params, (err, data) => {
-      if (err) {
-        log.error('Get the error from the email-transcripts lambda', err);
-        reject(err);
-      } else {
-        log.info('Get the response from the email-transcripts labmda', { ...logContext, data });
-        const { emailData } = data;
-        resolve(emailData);
-      }
-    });
-  });
+  let data;
+  try {
+    const { data: { result } } = await axios(params);
+    log.info('Fetch the user info from the api', { ...logContext, userId, result });
+    data = result;
+  } catch (err) {
+    log.error('Fail to fetch the user from the api.', { ...logContext, params, err });
+  }
+  return data;
 }
 
-function findTranscriptByMetadata({ files }) {
+// eslint-disable-next-line no-unused-vars
+async function fetchAllUsers({ logContext, tenantId, auth }) {
+  const params = {
+    method: 'get',
+    url: `https://${AWS_REGION}-${ENVIRONMENT}-edge.${DOMAIN}/v1/tenants/${tenantId}/users`,
+    headers: {
+      Authorization: auth,
+    },
+  };
+  let data;
+  try {
+    const { result } = await axios(params);
+    data = result;
+  } catch (err) {
+    log.error('Fail to fetch the users from the api.', { ...logContext, url: params.url, err });
+  }
+  return data;
+}
+
+function findDigitalChannelTranscript({ files }) {
   return files.find((file) => file && file.metadata && file.metadata.transcript
-    && file.metadata.transcript === true);
+      && file.metadata.transcript === true);
 }
 
-async function fetchMessagingArtifactFile(artifact) {
+function findSMSTranscript({ files }) {
+  return files.find((file) => file && file.filename && file.filename === 'transcript.json');
+}
+
+async function fetchMessagingArtifactFile(artifact, type, auth, logContext) {
+  let transcriptFile;
   log.debug('Finding Messaging Artifact File', { ...artifact });
-  const transcriptFile = findTranscriptByMetadata(artifact);
-  log.debug('The transcript file', { ...transcriptFile });
+  if (type === 'sms') {
+    transcriptFile = findSMSTranscript(artifact);
+  } else {
+    transcriptFile = findDigitalChannelTranscript(artifact);
+  }
+  log.debug('The transcript file', { ...logContext, transcriptFile });
   guard404(emptyObject(transcriptFile) || !transcriptFile.url);
   const { url } = transcriptFile;
   log.debug('The s3 artifact url: ', { url });
   const { data } = await axios.get(url);
   log.debug('Get the messaging payloads from the transcript file', { data });
   guard404(emptyObject(data));
-  const updatedPayload = data.map((item) => {
-    const {
-      payload: { body },
-    } = item;
-    const { file } = body;
-    if (Object.keys(file).length > 0) {
-      const { files = [] } = artifact;
-      const artifactFile = files.find((aFile) => aFile.metadata
-        && aFile.metadata.messageId === body.id);
-      if (artifactFile) {
-        file.mediaUrl = artifactFile.url;
-        file.filename = artifactFile.filename;
+  let updatedPayload = data;
+  if (type !== 'sms') {
+    updatedPayload = await Promise.all(data.map(async (item) => {
+      let {
+        // eslint-disable-next-line prefer-const
+        payload: { body, from },
+      } = item;
+      const { file } = body;
+      if (Object.keys(file).length > 0) {
+        const { files = [] } = artifact;
+        const artifactFile = files.find((aFile) => aFile.metadata
+            && aFile.metadata.messageId === body.id);
+        if (artifactFile) {
+          file.mediaUrl = artifactFile.url;
+          file.filename = artifactFile.filename;
+        }
       }
-    }
-    return item;
-  });
-  log.debug('Update the messaging payloads url with the s3 url', { updatedPayload });
+      if (validate(from)) {
+        const user = await fetchUserById({
+          logContext, tenantId: logContext.tenantId, userId: from, auth,
+        });
+        if (user && user.firstName) {
+          from = `${user.firstName} ${user.lastName}`;
+        }
+      }
+      return item;
+    }));
+  } else {
+    updatedPayload = await Promise.all(data.map(async (item) => {
+      const { payload } = item;
+      log.debug('Get the from', { ...logContext, from: payload.from, isUuid: validate(payload.from) });
+      if (validate(payload.from)) {
+        const user = await fetchUserById({
+          logContext, tenantId: logContext.tenantId, userId: payload.from, auth,
+        });
+        if (user && user.firstName) {
+          payload.from = `${user.firstName} ${user.lastName}`;
+        }
+      }
+      return item;
+    }));
+  }
+  log.debug('Updated the messaging payloads url with the s3 url', { updatedPayload });
   return { messagingTranscript: updatedPayload, contentType: transcriptFile.contentType };
 }
 
@@ -162,20 +216,27 @@ exports.handler = async (event) => {
   const logContext = { tenantId, interactionId, accept: contentType };
   const fnParams = { ...logContext, auth: params.auth };
   log.info('Handling fetch digital channel transcript request', logContext);
+  let transcriptType = '';
   try {
     const artifactsSummary = await fetchArtifactsSummary(fnParams);
     const artifact = await fetchMostRecentArtifact({ ...fnParams, artifactsSummary });
-    const { artifactType } = artifact;
-    log.info('Get the artifactType from the artifact.', { ...logContext, artifactType });
+    const { artifactType, artifactSubType } = artifact;
+    log.debug('Get the artifactType from the artifact.', { artifactType });
+    transcriptType = artifactType;
     let transcriptData;
     switch (artifactType) {
       case 'email': {
-        const { data } = await fetchEmailArtifactFile(artifact, logContext);
+        const { data } = await fetchEmailArtifactFile(artifact);
         transcriptData = data;
         break;
       }
       case 'messaging-transcript': {
-        transcriptData = await fetchMessagingArtifactFile(artifact);
+        if (artifactSubType) {
+          // eslint-disable-next-line max-len
+          transcriptData = await fetchMessagingArtifactFile(artifact, artifactSubType, params.auth, logContext);
+        } else {
+          transcriptData = await fetchMessagingArtifactFile(artifact, 'sms', params.auth, logContext);
+        }
         contentType = transcriptData.contentType;
         break;
       }
@@ -189,7 +250,7 @@ exports.handler = async (event) => {
     return { status: 200, body: transcriptData, headers: { 'Content-Type': contentType } };
   } catch (error) {
     const dne = (error.message === 'Missing');
-    const errMsg = dne ? 'Specified interaction transcript does not exist' : 'An unexpected error occurred fetching email transcript';
+    const errMsg = dne ? 'Specified interaction transcript does not exist' : `An unexpected error occurred fetching ${transcriptType} transcript`;
     const status = dne ? 404 : 500;
     log.error(errMsg, logContext, error);
     return {
