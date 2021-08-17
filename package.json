@@ -1,6 +1,6 @@
 {
   "name": "transcripts-lambdas",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "This is the starter kit for a new lambdas repository.",
   "scripts": {
     "alonzo": "alonzo",

@@ -5,8 +5,8 @@
   "repository": {},
   "license": "UNLICENSED",
   "dependencies": {
-    "alonzo": "9.0.0",
+    "alonzo": "latest",
     "aws-sdk": "^2.944.0",
-    "axios": "^0.21.1"
+    "axios": "latest"
   }
 }
