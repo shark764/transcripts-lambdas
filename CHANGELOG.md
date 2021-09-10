@@ -1,6 +1,10 @@
 # Change Log
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
+## [1.2.2](https://github.com/SerenovaLLC/transcripts-lambdas/compare/1.1.3...1.2.1)
+### Fixed
+- Fixed the bug that does not fetch the agent's info from the users api to update agents'name.
+
 ## [1.2.1](https://github.com/SerenovaLLC/transcripts-lambdas/compare/1.1.3...1.2.1)
 ### Added
 - Set the 'get-transcripts' to be the main lambda, and the 'email-transcripts' will be abdicated.

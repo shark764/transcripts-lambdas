@@ -7,6 +7,7 @@
   "dependencies": {
     "alonzo": "latest",
     "aws-sdk": "^2.944.0",
-    "axios": "latest"
+    "axios": "latest",
+    "uuid": "^8.3.2"
   }
 }

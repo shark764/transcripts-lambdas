@@ -1,5 +1,6 @@
 const { lambda: { log } } = require('alonzo');
 const axios = require('axios');
+const { validate } = require('uuid');
 
 const { AWS_REGION, ENVIRONMENT, DOMAIN } = process.env;
 
@@ -99,6 +100,46 @@ async function fetchEmailArtifactFile(artifact) {
   return emailData;
 }
 
+async function fetchUserById({
+  logContext, tenantId, userId, auth,
+}) {
+  const params = {
+    method: 'get',
+    url: `https://${AWS_REGION}-${ENVIRONMENT}-edge.${DOMAIN}/v1/tenants/${tenantId}/users/${userId}`,
+    headers: {
+      Authorization: auth,
+    },
+  };
+  let data;
+  try {
+    const { data: { result } } = await axios(params);
+    log.info('Fetch the user info from the api', { ...logContext, userId, result });
+    data = result;
+  } catch (err) {
+    log.error('Fail to fetch the user from the api.', { ...logContext, params, err });
+  }
+  return data;
+}
+
+// eslint-disable-next-line no-unused-vars
+async function fetchAllUsers({ logContext, tenantId, auth }) {
+  const params = {
+    method: 'get',
+    url: `https://${AWS_REGION}-${ENVIRONMENT}-edge.${DOMAIN}/v1/tenants/${tenantId}/users`,
+    headers: {
+      Authorization: auth,
+    },
+  };
+  let data;
+  try {
+    const { result } = await axios(params);
+    data = result;
+  } catch (err) {
+    log.error('Fail to fetch the users from the api.', { ...logContext, url: params.url, err });
+  }
+  return data;
+}
+
 function findDigitalChannelTranscript({ files }) {
   return files.find((file) => file && file.metadata && file.metadata.transcript
       && file.metadata.transcript === true);
@@ -108,7 +149,7 @@ function findSMSTranscript({ files }) {
   return files.find((file) => file && file.filename && file.filename === 'transcript.json');
 }
 
-async function fetchMessagingArtifactFile(artifact, type) {
+async function fetchMessagingArtifactFile(artifact, type, auth, logContext) {
   let transcriptFile;
   log.debug('Finding Messaging Artifact File', { ...artifact });
   if (type === 'sms') {
@@ -116,7 +157,7 @@ async function fetchMessagingArtifactFile(artifact, type) {
   } else {
     transcriptFile = findDigitalChannelTranscript(artifact);
   }
-  log.debug('The transcript file', { ...transcriptFile });
+  log.debug('The transcript file', { ...logContext, transcriptFile });
   guard404(emptyObject(transcriptFile) || !transcriptFile.url);
   const { url } = transcriptFile;
   log.debug('The s3 artifact url: ', { url });
@@ -125,9 +166,10 @@ async function fetchMessagingArtifactFile(artifact, type) {
   guard404(emptyObject(data));
   let updatedPayload = data;
   if (type !== 'sms') {
-    updatedPayload = data.map((item) => {
-      const {
-        payload: { body },
+    updatedPayload = await Promise.all(data.map(async (item) => {
+      let {
+        // eslint-disable-next-line prefer-const
+        payload: { body, from },
       } = item;
       const { file } = body;
       if (Object.keys(file).length > 0) {
@@ -139,10 +181,32 @@ async function fetchMessagingArtifactFile(artifact, type) {
           file.filename = artifactFile.filename;
         }
       }
+      if (validate(from)) {
+        const user = await fetchUserById({
+          logContext, tenantId: logContext.tenantId, userId: from, auth,
+        });
+        if (user && user.firstName) {
+          from = `${user.firstName} ${user.lastName}`;
+        }
+      }
       return item;
-    });
+    }));
+  } else {
+    updatedPayload = await Promise.all(data.map(async (item) => {
+      const { payload } = item;
+      log.debug('Get the from', { ...logContext, from: payload.from, isUuid: validate(payload.from) });
+      if (validate(payload.from)) {
+        const user = await fetchUserById({
+          logContext, tenantId: logContext.tenantId, userId: payload.from, auth,
+        });
+        if (user && user.firstName) {
+          payload.from = `${user.firstName} ${user.lastName}`;
+        }
+      }
+      return item;
+    }));
   }
-  log.debug('Update the messaging payloads url with the s3 url', { updatedPayload });
+  log.debug('Updated the messaging payloads url with the s3 url', { updatedPayload });
   return { messagingTranscript: updatedPayload, contentType: transcriptFile.contentType };
 }
 
@@ -168,9 +232,10 @@ exports.handler = async (event) => {
       }
       case 'messaging-transcript': {
         if (artifactSubType) {
-          transcriptData = await fetchMessagingArtifactFile(artifact, artifactSubType);
+          // eslint-disable-next-line max-len
+          transcriptData = await fetchMessagingArtifactFile(artifact, artifactSubType, params.auth, logContext);
         } else {
-          transcriptData = await fetchMessagingArtifactFile(artifact, 'sms');
+          transcriptData = await fetchMessagingArtifactFile(artifact, 'sms', params.auth, logContext);
         }
         contentType = transcriptData.contentType;
         break;
